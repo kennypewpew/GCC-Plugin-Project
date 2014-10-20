@@ -2,7 +2,7 @@
 
 
 
-#pragma MIHPS vcheck (f1, f2, f2, f4)
+#pragma MIHPS vcheck (f1, f2, f2, f4, f5)
 
 void f1() {
   return;

@@ -22,7 +22,7 @@ vec<bool, va_heap, vl_ptr> arg_used;
 void check_instr_args_for_doubles() {
   for ( int i = 0 ; i < instr_args.length() ; ++i ) {
     bool flag = false;
-    for ( int j = i+1 ; j < instr_args.length() ; ++j ) {
+    for ( int j = i-1 ; j > -1 ; --j ) {
       if ( 0 == strcmp(instr_args[i],instr_args[j]) )
 	flag = true;
     }
@@ -30,7 +30,7 @@ void check_instr_args_for_doubles() {
       warning (OPT_Wpragmas,
 	       "Function %s declared to be checked multiple times",
 	       instr_args[i]);
-      // Remove doublets here?
+      arg_used[i] = true;
     }
   }
 
@@ -48,6 +48,7 @@ bool function_to_check(const char *fn) {
 
 
 static void test_if_all_used(void *event_data, void *data) {
+  printf("Testing if all %d functions were checked\n", arg_used.length());
   for ( int i = 0 ; i < arg_used.length() ; ++i )
     if ( !arg_used[i] ) 
       warning (OPT_Wpragmas,
