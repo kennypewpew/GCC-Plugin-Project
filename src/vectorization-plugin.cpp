@@ -28,7 +28,7 @@ void check_instr_args_for_doubles() {
     }
     if ( flag == true ) {
       warning (OPT_Wpragmas,
-	       "Function %s declared to be checked multiple times",
+	       "Function \"%s\" declared to be checked multiple times",
 	       instr_args[i]);
       arg_used[i] = true;
     }
@@ -52,7 +52,7 @@ static void test_if_all_used(void *event_data, void *data) {
   for ( int i = 0 ; i < arg_used.length() ; ++i )
     if ( !arg_used[i] ) 
       warning (OPT_Wpragmas,
-	       "Function %s declared to analyze, but not found",
+	       "Function \"%s\" declared to analyze, but not found",
 	       instr_args[i]);
 }
 /******* End analysis storage/functions ******/
@@ -83,7 +83,7 @@ static void vcheck_pragma_handler(cpp_reader *ARG_UNUSED(notUsed)) {
   else {
     while ( tmpType == CPP_NAME) {
       current_string = IDENTIFIER_POINTER (tmpTree);
-      printf("Function %s recognized as needing analysis\n", current_string);
+      printf("Function \"%s\" recognized as needing analysis\n",current_string);
 
       instr_args.safe_push(current_string);
       arg_used.safe_push(false);
