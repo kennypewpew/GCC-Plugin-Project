@@ -102,9 +102,7 @@ static void vcheck_pragma_handler(cpp_reader *ARG_UNUSED(notUsed)) {
 		 "does not have final %<)%>");
     }
   }
-  std::cout << "Pragma handled!\n";
   check_instr_args_for_doubles();
-  //printf("Pragma recognized\n");
   return;
 }
 
@@ -115,14 +113,84 @@ static void register_vector_pragmas(void *even_data, void *data) {
 
 /******* End pragma handling ********/
 
+/****** Begin new pass *********************/
+
+const pass_data loop_analysis_pass_data =
+  {
+    GIMPLE_PASS, 
+    "loop_analysis_pass",
+    OPTGROUP_NONE,
+    true,
+    true,
+    TV_OPTIMIZE,
+    0,
+    0,
+    0,
+    0,
+    0
+  };
+
+class analysis_pass: public gimple_opt_pass {
+public:
+  analysis_pass (gcc::context *ctxt)
+    : gimple_opt_pass(loop_analysis_pass_data, ctxt) {}
+
+  bool gate() { 
+    std::cerr << "Entering gate\n";
+    const char *current_function = fndecl_name(cfun->decl);
+
+    if ( function_to_check(current_function) ) {
+      const char *current_function = fndecl_name(cfun->decl);
+      printf("Analyzing function %s\n", current_function);
+
+      return true;
+    }
+    else
+      return false; 
+  }
+
+  unsigned int execute() {
+    
+
+    return 0;
+  }
+
+  analysis_pass* clone() { return new analysis_pass(g); }
+};
+
+/******** End new pass **********/
+
 int plugin_init (struct plugin_name_args *plugin_info,
 		 struct plugin_gcc_version *version ) {
   printf("Vectorization plugin loaded!\n");
 
+  // Declare pragmas
   register_callback(plugin_info->base_name,
 		    PLUGIN_PRAGMAS,
 		    register_vector_pragmas,
 		    NULL);
+
+  // Insert loop analysis pass
+  struct register_pass_info loop_analysis_pass_info;
+  analysis_pass analyze(g);
+
+  loop_analysis_pass_info.pass = &analyze;
+  loop_analysis_pass_info.reference_pass_name = "*record_bounds";
+  loop_analysis_pass_info.ref_pass_instance_number = 0;
+  loop_analysis_pass_info.pos_op = PASS_POS_INSERT_AFTER;
+
+  register_callback(plugin_info->base_name,
+		    PLUGIN_PASS_MANAGER_SETUP,
+		    NULL,
+		    &loop_analysis_pass_info);
+
+
+  // Check if all functions actually analyzed
+  register_callback(plugin_info->base_name,
+		    PLUGIN_FINISH,
+		    test_if_all_used,
+		    NULL);
+
 
   return 0;
 }
