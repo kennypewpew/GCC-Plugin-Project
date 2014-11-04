@@ -1,0 +1,2 @@
+test_if_all_used returns the wrong line number when giving error.
+	may want to stock line number when detecting pragmas
