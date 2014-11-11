@@ -12,7 +12,9 @@
 #include <function.h>              // cfun
 #include <diagnostic.h>            // error(...)
 #include <intl.h>                  // G_(...)
+#include <gimple-expr.h>
 
+#include <tree-pretty-print.h>
 //#include <builtins.h>
 
 #include <iostream>
@@ -59,11 +61,191 @@ static void test_if_all_used(void *event_data, void *data) {
   // Returns wrong file number as error
   for ( int i = 0 ; i < arg_used.length() ; ++i )
     if ( !arg_used[i] ) 
-      warning (OPT_Wpragmas,
-	       "[pragma] Function \"%s\" declared to analyze, but not found",
+      //warning (OPT_Wpragmas,
+      printf(
+      "[pragma] warning: Function \"%s\" declared to analyze, but not found\n",
 	       instr_args[i]);
 }
 /******* End analysis storage/functions ******/
+
+/******** Insert functions ********/
+void insert_function() {
+  gimple fn_call;
+
+  // Is there any need for verbosity = 3? Try setting to 0?
+  const char *fn_name = gimple_decl_printable_name(cfun->decl, 3);
+  printf("%s\n", fn_name);
+  
+  // Return type of function to insert, followed by types of args
+  tree fn_type = build_function_type_list(void_type_node,
+					  ptr_type_node,
+					  uint32_type_node,
+					  //TREE_TYPE(var),
+					  NULL_TREE);
+
+  
+  // Create an identifier for the function
+  tree fn_id = build_int_cst(uint32_type_node, cfun->funcdef_no);
+
+  // Operation to create declaration of function
+  tree fn_decl = build_fn_decl("test_function", fn_type);
+
+  // not needed until you have args 
+  tree fn_name_tree = fix_string_type( build_string (strlen( fn_name ) + 1,
+  						     fn_name) );
+  tree ptrtype = build_pointer_type (TREE_TYPE (TREE_TYPE (fn_name_tree)));
+  tree p_name = build1 (ADDR_EXPR, ptrtype, fn_name_tree);
+  
+  fn_call = gimple_build_call(fn_decl, 2, p_name, fn_id);
+
+
+  return;
+}
+
+
+void insert_print_var(gimple_stmt_iterator &gsi, tree var, tree var2) {
+  char string[] = "[%s]lhs value is %d, rhs is %d\n";
+  tree string_tree = fix_string_type(build_string(strlen(string)+1, string));
+
+  tree string_type = build_pointer_type(TREE_TYPE(TREE_TYPE(string_tree)));
+  tree string_args_tree = build1(ADDR_EXPR, string_type, string_tree);
+
+  const char *fString = gimple_decl_printable_name(cfun->decl, 3);
+  tree fString_tree = fix_string_type( build_string(strlen(fString)+1,
+						    fString) );
+  tree fString_type = build_pointer_type (
+					  TREE_TYPE(TREE_TYPE(fString_tree)));
+  tree fString_args_tree = build1(ADDR_EXPR, fString_type, fString_tree);
+
+  tree print_fn = builtin_decl_implicit(BUILT_IN_PRINTF);
+  gimple print_gimple = gimple_build_call(print_fn, 4,
+					  string_args_tree,
+					  fString_args_tree,
+					  var, var2);
+  
+  gsi_insert_before(&gsi, print_gimple, GSI_NEW_STMT);
+  
+  return;
+}
+void insert_print_var(gimple_stmt_iterator &gsi, tree var, tree var2, tree var3) {
+  char string[] = "[%s]lhs value is %d, rhs is %d, %d\n";
+  tree string_tree = fix_string_type(build_string(strlen(string)+1, string));
+
+  tree string_type = build_pointer_type(TREE_TYPE(TREE_TYPE(string_tree)));
+  tree string_args_tree = build1(ADDR_EXPR, string_type, string_tree);
+
+  const char *fString = gimple_decl_printable_name(cfun->decl, 3);
+  tree fString_tree = fix_string_type( build_string(strlen(fString)+1,
+						    fString) );
+  tree fString_type = build_pointer_type (
+					  TREE_TYPE(TREE_TYPE(fString_tree)));
+  tree fString_args_tree = build1(ADDR_EXPR, fString_type, fString_tree);
+
+  tree print_fn = builtin_decl_implicit(BUILT_IN_PRINTF);
+  gimple print_gimple = gimple_build_call(print_fn, 5,
+					  string_args_tree,
+					  fString_args_tree,
+					  var, var2, var3);
+  
+  gsi_insert_before(&gsi, print_gimple, GSI_NEW_STMT);
+  
+  return;
+}
+void insert_print_string(gimple_stmt_iterator &gsi, const char *string) {
+  tree string_tree = fix_string_type(build_string(strlen(string)+1, string));
+
+  tree string_type = build_pointer_type(TREE_TYPE(TREE_TYPE(string_tree)));
+  tree string_args_tree = build1(ADDR_EXPR, string_type, string_tree);
+
+  tree print_fn = builtin_decl_implicit(BUILT_IN_PRINTF);
+  gimple print_gimple = gimple_build_call(print_fn, 1, string_args_tree);
+
+  gsi_insert_before(&gsi, print_gimple, GSI_SAME_STMT);
+  
+  return;
+}
+
+// Note: don't really need to pass the stmt if you're already passing gsi
+bool analyze_stmt(gimple stmt, gimple prev_stmt, gimple_stmt_iterator &gsi) {
+  const_tree op;
+  size_t i;
+
+  //gimple stmt = gsi_stmt(gsi);
+
+  tree lhs, rhs, rhs2;
+  int flag = 1;
+  
+  if ( is_gimple_assign(stmt) ) {
+    // make sure this includes mult, add, etc as well
+    
+    for ( i = 0 ; i < gimple_num_ops(stmt) ; ++i ) {
+      op = gimple_op(stmt, i);
+      if ( op ) {
+	if ( TREE_CODE(op) == POINTER_TYPE ) flag = 1;
+	if ( TREE_CODE(op) == OFFSET_TYPE ) flag = 1;
+	printf("%s\n", get_tree_code_name( TREE_CODE(op) ) );
+	switch( TREE_CODE( op ) )
+	  {
+	  case ARRAY_REF: printf("ARRAY_REF\n"); break;
+	  case ARRAY_RANGE_REF: printf("ARRAY_RANGE_REF\n"); break;
+	  case TARGET_MEM_REF: printf("TARGET_MEM_REF\n"); break;
+	  case ADDR_EXPR: printf("ADDR_EXPR\n"); break;
+	  case INDIRECT_REF: printf("INDIRECT_REF\n"); break;
+	  case MEM_REF: flag = 1; printf("MEM_REF\n");
+	    break;
+	  case COMPONENT_REF: printf("COMPONENT_REF!\n");break;
+	  case RECORD_TYPE: break;
+	  default: break;
+	  }
+      }
+    }
+    printf("Assignment - %d operands\n", gimple_num_ops(stmt));
+
+    if ( flag ) {
+
+      print_gimple_stmt(stdout, stmt, 0, TDF_SLIM);
+      lhs = gimple_assign_lhs(stmt);
+      rhs = gimple_assign_rhs1(stmt);
+      if ( gimple_num_ops(stmt) == 3 ) {
+	rhs2 = gimple_assign_rhs2(stmt);
+	insert_print_var(gsi, lhs, rhs, rhs2);
+      }
+      else 
+	insert_print_var(gsi, lhs, rhs);
+    }
+
+
+    return true;
+  }
+
+  return false;
+}
+
+void find_vars() {
+  printf("Finding variables of %s\n", fndecl_name(cfun->decl));
+
+  basic_block bb;
+  gimple_stmt_iterator gsi;
+  gimple stmt, prev_stmt;
+
+  FOR_EACH_BB_FN(bb, cfun) {    
+    gsi = gsi_start_bb(bb);
+    while ( gsi.ptr != (gsi_last_bb(bb)).ptr ) {
+      prev_stmt = stmt;
+      stmt = gsi_stmt(gsi);
+      gsi_next(&gsi);
+      if ( stmt && prev_stmt ) {
+	analyze_stmt(stmt, prev_stmt, gsi);
+      }
+    }
+    gsi = gsi_last_bb(bb);
+    insert_print_string(gsi, "End basic block\n");
+  }
+}
+
+
+/******** End Insert functions ********/
+
 
 /******* Begin pragma handling *******/
 static void vcheck_pragma_handler(cpp_reader *ARG_UNUSED(notUsed)) {
@@ -158,9 +340,25 @@ void analyze_fn_loops(struct function *fn) {
   FOR_EACH_LOOP(cLoop, 0) {
     printf("[%s] loop detected\n", fn_name);
 
+    // Is it really this easy to only touch innermost loops?
+    if ( !cLoop->inner ) {
+      printf("Innermost loop found!\n");
+      basic_block preheader = loop_preheader_edge(cLoop)->src;
+      basic_block postheader = loop_preheader_edge(cLoop)->dest;
+      gimple_stmt_iterator gsi_pre = gsi_start_bb(preheader);
+      gimple_stmt_iterator gsi_post = gsi_last_bb(postheader);
+
+      // initialize analysis data structures(gsi_pre/preheader)
+      // inject logging functions(gsi_post/postheader)
+      
+      insert_print_string(gsi_pre,
+			  "Entering innermost loop\n");
+      //insert_print_string(gsi_post,
+      //"Inside innermost loop\n");
+    }
     // Use ->src to add before start of loop, ->dest to add inside start of loop
-    basic_block preLoop = loop_preheader_edge(cLoop)->src;
-    placeholder(preLoop);
+    //basic_block preLoop = loop_preheader_edge(cLoop)->src;
+    //placeholder(preLoop);
   }
 
   return;
@@ -201,9 +399,12 @@ public:
   }
 
   unsigned int execute() {
-    //struct loops *loop_start = loops_for_fn(cfun);
+
+    // very rare crash somewhere in analyze_fn_loops
     analyze_fn_loops(cfun);
 
+    //find_vars();
+    
     return 0;
   }
 
@@ -211,6 +412,7 @@ public:
 };
 
 /******** End new pass **********/
+
 
 int plugin_init (struct plugin_name_args *plugin_info,
 		 struct plugin_gcc_version *version ) {

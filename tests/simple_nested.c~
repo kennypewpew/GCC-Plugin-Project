@@ -1,0 +1,13 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+#pragma MIHPS vcheck nestedLoops
+
+void nestedLoops(int *A, int *B, int *C) {
+
+
+
+
+
+  return;
+}
