@@ -16,6 +16,7 @@ extern "C" {
   };
 
   std::vector<std::vector<struct access>* > full_loop;
+  std::vector<struct access> *current_loop;
   
   void test_function(const char *txt, ...) {
     va_list ap;
@@ -31,14 +32,14 @@ extern "C" {
 
 
   std::vector<struct access> *alloc_loop_vector() {
-    std::vector<struct access> *vec = new std::vector<struct access>;
-    full_loop.push_back(vec);
-    printf("Allocating vector at %p\n", vec);
-    return vec;
+    current_loop = new std::vector<struct access>;
+    full_loop.push_back(current_loop);
+    printf("Allocating vector at %p\n", current_loop);
+    return current_loop;
   }
 
-  void insert_info(std::vector<struct access> *vec) {
-    printf("Using vector at %p\n", vec);
+  void insert_info() {
+    printf("Using vector at %p\n", current_loop);
 
 
   }
