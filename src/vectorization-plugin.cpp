@@ -157,15 +157,11 @@ void insert_stock_fn(gimple_stmt_iterator &gsi, tree var, enum IO type) {
   tree fn_decl = build_fn_decl("insert_info", fn_type);
 
   tree io_type = build_int_cst(integer_type_node, type);
-  tree size = build_int_cst(size_type_node,
-			    //INT_TYPE_SIZE);
-			    TYPE_PRECISION(var));
 
-  if ( TREE_CODE(TREE_TYPE(var)) == INTEGER_TYPE ) printf("\n\n\n\n\n");
+  if ( TREE_CODE(TREE_TYPE(var)) == POINTER_TYPE ) printf("\n\n\n\n\n");
   
   fn_call = gimple_build_call(fn_decl, 3, var, io_type,
-			      //size);
-			      TYPE_SIZE(TREE_TYPE(io_type)));
+			      TYPE_SIZE(TREE_TYPE(TREE_TYPE(var))));
   gsi_insert_before(&gsi, fn_call, GSI_SAME_STMT);
 
 
@@ -247,6 +243,7 @@ bool analyze_stmt(gimple stmt, gimple prev_stmt, gimple_stmt_iterator &gsi) {
   if ( is_gimple_assign(stmt) ) {
     // make sure this includes mult, add, etc as well
     
+    debug_gimple_stmt(stmt);
     for ( i = 0 ; i < gimple_num_ops(stmt) ; ++i ) {
       op = gimple_op(stmt, i);
       if ( op ) {
@@ -279,7 +276,7 @@ bool analyze_stmt(gimple stmt, gimple prev_stmt, gimple_stmt_iterator &gsi) {
 	rhs2 = gimple_assign_rhs2(stmt);
 	insert_print_var(gsi, lhs, rhs, rhs2);
 	if ( TREE_CODE(TREE_TYPE(rhs)) == POINTER_TYPE ) {
-	  insert_stock_fn(gsi, lhs, RD);
+	  insert_stock_fn(gsi, lhs, WR);
 	  char string[] = "Pointer being used: %p, %d bytes in\n";
 	  tree string_tree = fix_string_type(build_string(strlen(string)+1,
 							  string));
@@ -298,6 +295,7 @@ bool analyze_stmt(gimple stmt, gimple prev_stmt, gimple_stmt_iterator &gsi) {
       else {
 	insert_print_var(gsi, lhs, rhs);
 	if ( TREE_CODE(TREE_TYPE(rhs)) == POINTER_TYPE ) {
+	  insert_stock_fn(gsi, rhs, RD);
 	  insert_print_string(gsi, "Pointer being used!\n");
 	  char string[] = "Pointer being used: %p, %d'th element\n";
 	  tree string_tree = fix_string_type(build_string(strlen(string)+1,
