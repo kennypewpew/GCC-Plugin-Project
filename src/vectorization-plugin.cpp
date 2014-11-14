@@ -158,15 +158,29 @@ void insert_stock_fn(gimple_stmt_iterator &gsi, tree var, enum IO type) {
 
   tree io_type = build_int_cst(integer_type_node, type);
 
-  if ( TREE_CODE(TREE_TYPE(var)) == POINTER_TYPE ) printf("\n\n\n\n\n");
-  
+  tree var_type = TREE_TYPE(var);
+  if ( TREE_CODE(var_type) == POINTER_TYPE ) var_type = TREE_TYPE(var_type);
   fn_call = gimple_build_call(fn_decl, 3, var, io_type,
-			      TYPE_SIZE(TREE_TYPE(TREE_TYPE(var))));
+			      TYPE_SIZE(var_type));
   gsi_insert_before(&gsi, fn_call, GSI_SAME_STMT);
 
 
   return;
 }
+
+void insert_post_loop_treatment(gimple_stmt_iterator gsi) {
+  gimple fn_call;
+
+  tree fn_type = build_function_type_list(void_type_node,
+					  NULL_TREE);
+  tree fn_decl = build_fn_decl("analyze_loop", fn_type);
+
+  fn_call = gimple_build_call(fn_decl, 0);
+  gsi_insert_before(&gsi, fn_call, GSI_SAME_STMT);
+
+  return;
+}
+
 
 void insert_print_var(gimple_stmt_iterator &gsi, tree var, tree var2) {
   char string[] = "[%s] lhs value is %d, rhs is %d\n";
@@ -340,7 +354,7 @@ void find_vars() {
       }
     }
     gsi = gsi_last_bb(bb);
-    insert_print_string(gsi, "End basic block\n");
+    //insert_print_string(gsi, "End basic block\n");
   }
 }
 
@@ -376,7 +390,8 @@ static void vcheck_pragma_handler(cpp_reader *ARG_UNUSED(notUsed)) {
     while ( tmpType == CPP_NAME) {
       const char *full_string = IDENTIFIER_POINTER (tmpTree) ;
       current_string = isolate_name(full_string);
-      printf("[pragma] Function \"%s\" recognized as needing analysis\n",current_string);
+      printf("[pragma] Function \"%s\" recognized as needing analysis\n",
+	     current_string);
 
       instr_args.safe_push(current_string);
       arg_used.safe_push(false);
@@ -447,18 +462,22 @@ void analyze_fn_loops(struct function *fn) {
     if ( !cLoop->inner ) {
       printf("Innermost loop found!\n");
       basic_block preheader = loop_preheader_edge(cLoop)->src;
-      basic_block postheader = loop_preheader_edge(cLoop)->dest;
       gimple_stmt_iterator gsi_pre = gsi_start_bb(preheader);
-      gimple_stmt_iterator gsi_post = gsi_last_bb(postheader);
 
       // initialize analysis data structures(gsi_pre/preheader)
       // inject logging functions(gsi_post/postheader)
       
       insert_print_string(gsi_pre,
 			  "Entering innermost loop\n");
-      tree vec = insert_function(gsi_pre);
-      //insert_print_string(gsi_post,
-      //"Inside innermost loop\n");
+      insert_function(gsi_pre);
+
+      //edge post_edge = loop_latch_edge(cLoop);
+      edge post_edge = single_exit(cLoop);
+      basic_block post_block = post_edge->dest;
+      gimple_stmt_iterator gsi_post = gsi_start_bb(post_block);
+      insert_print_string(gsi_post,
+			  "Exiting loop\n");
+      insert_post_loop_treatment(gsi_post);
     }
     // Use ->src to add before start of loop, ->dest to add inside start of loop
     //basic_block preLoop = loop_preheader_edge(cLoop)->src;

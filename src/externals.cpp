@@ -18,6 +18,9 @@ extern "C" {
   std::vector<std::vector<struct access>* > full_loop;
   std::vector<struct access> *current_loop;
   
+  // Add vectors to store info on loops
+  // If possible, wait until end of execution to say if loop is vectorizable
+
   void test_function(const char *txt, ...) {
     va_list ap;
     va_start(ap, txt);
@@ -38,14 +41,16 @@ extern "C" {
     return current_loop;
   }
 
-  void insert_info(void* address, int type, size_t size) {
-    //printf("Using vector at %p\n", current_loop);
-    printf("%d access type at address %p of size %d\n", type, address, size);
-
+  void insert_info(void* address, enum IO type, int size) {
+    void *tmp = address;
+    tmp += size;
+    //printf("%d access type from address %p - %p\n", type, address, tmp);
+    struct access acc = { address, tmp, type };
+    current_loop->push_back(acc);
   }
 
-
   void clean_full_loop() {
+    printf("Deleting loop info\n");
     for ( int i = 0 ; i < full_loop.size() ; ++i ) 
       delete full_loop[i];
 
@@ -53,5 +58,13 @@ extern "C" {
     return;
   }
 
+  void analyze_loop() {
+    printf("Analyzing loop\n");
+
+
+    clean_full_loop();
+    return;
+  }
+  
 
 } // end extern "C"
