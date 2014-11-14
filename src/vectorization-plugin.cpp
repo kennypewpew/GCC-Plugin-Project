@@ -114,51 +114,63 @@ static void test_if_all_used(void *event_data, void *data) {
 /******* End analysis storage/functions ******/
 
 /******** Insert functions ********/
+enum IO {
+  RD = 0,
+  WR = 1
+};
+
 tree insert_function(gimple_stmt_iterator &gsi) {
   gimple fn_call;
 
-  // Is there any need for verbosity = 3? Try setting to 0?
-  //const char *fn_name = gimple_decl_printable_name(cfun->decl, 3);
-  //printf("%s\n", fn_name);
-  
   // Return type of function to insert, followed by types of args
   tree fn_type = build_function_type_list(void_type_node,
 					  NULL_TREE);
-
   // Operation to create declaration of function
   tree fn_decl = build_fn_decl("alloc_loop_vector", fn_type);
 
   fn_call = gimple_build_call(fn_decl, 0);
+  gsi_insert_before(&gsi, fn_call, GSI_SAME_STMT);
 
-  debug_gimple_stmt(fn_call);
+  
+  gimple next_fn_call;
+  tree next_fn_type = build_function_type_list(void_type_node,
+					       NULL_TREE);
+  tree next_fn_decl = build_fn_decl("insert_info", next_fn_type);
+  next_fn_call = gimple_build_call(next_fn_decl, 0);
 
-  gsi_insert_before(&gsi, fn_call, GSI_NEW_STMT);
-  debug_gimple_stmt(gsi_stmt(gsi));
-  printf("-----------------------------\n");
-  tree vector = gimple_assign_lhs(gsi_stmt(gsi));
-
-  //gimple_stmt_iterator next_gsi = gsi;
-  //gsi_next(&next_gsi);
-
-  //gimple next_fn_call;
-
-  // Return type of function to insert, followed by types of args
-  //tree next_fn_type = build_function_type_list(void_type_node,
-  //					  ptr_type_node,
-  //					  NULL_TREE);
-
-  // Operation to create declaration of function
-  //tree next_fn_decl = build_fn_decl("insert_info", next_fn_type);
-
-  //next_fn_call = gimple_build_call(next_fn_decl, 1, vector);
-
-  //debug_gimple_stmt(next_fn_call);
-  //gsi_insert_before(&gsi, next_fn_call, GSI_NEW_STMT);
+  gsi_insert_before(&gsi, next_fn_call, GSI_NEW_STMT);
 
   
   return fn_type;
 }
 
+void insert_stock_fn(gimple_stmt_iterator &gsi, tree var, enum IO type) {
+  gimple fn_call;
+
+  // Return type of function to insert, followed by types of args
+  tree fn_type = build_function_type_list(void_type_node,
+					  ptr_type_node,
+					  integer_type_node,
+					  size_type_node,
+					  NULL_TREE);
+  // Operation to create declaration of function
+  tree fn_decl = build_fn_decl("insert_info", fn_type);
+
+  tree io_type = build_int_cst(integer_type_node, type);
+  tree size = build_int_cst(size_type_node,
+			    //INT_TYPE_SIZE);
+			    TYPE_PRECISION(var));
+
+  if ( TREE_CODE(TREE_TYPE(var)) == INTEGER_TYPE ) printf("\n\n\n\n\n");
+  
+  fn_call = gimple_build_call(fn_decl, 3, var, io_type,
+			      //size);
+			      TYPE_SIZE(TREE_TYPE(io_type)));
+  gsi_insert_before(&gsi, fn_call, GSI_SAME_STMT);
+
+
+  return;
+}
 
 void insert_print_var(gimple_stmt_iterator &gsi, tree var, tree var2) {
   char string[] = "[%s] lhs value is %d, rhs is %d\n";
@@ -180,7 +192,7 @@ void insert_print_var(gimple_stmt_iterator &gsi, tree var, tree var2) {
 					  fString_args_tree,
 					  var, var2);
   
-  gsi_insert_before(&gsi, print_gimple, GSI_NEW_STMT);
+  gsi_insert_before(&gsi, print_gimple, GSI_SAME_STMT);
   
   return;
 }
@@ -204,7 +216,7 @@ void insert_print_var(gimple_stmt_iterator &gsi, tree var, tree var2, tree var3)
 					  fString_args_tree,
 					  var, var2, var3);
   
-  gsi_insert_before(&gsi, print_gimple, GSI_NEW_STMT);
+  gsi_insert_before(&gsi, print_gimple, GSI_SAME_STMT);
   
   return;
 }
@@ -266,10 +278,43 @@ bool analyze_stmt(gimple stmt, gimple prev_stmt, gimple_stmt_iterator &gsi) {
       if ( gimple_num_ops(stmt) == 3 ) {
 	rhs2 = gimple_assign_rhs2(stmt);
 	insert_print_var(gsi, lhs, rhs, rhs2);
+	if ( TREE_CODE(TREE_TYPE(rhs)) == POINTER_TYPE ) {
+	  insert_stock_fn(gsi, lhs, RD);
+	  char string[] = "Pointer being used: %p, %d bytes in\n";
+	  tree string_tree = fix_string_type(build_string(strlen(string)+1,
+							  string));
+	  tree string_type = build_pointer_type(
+					     TREE_TYPE(TREE_TYPE(string_tree)));
+	  tree string_args_tree = build1(ADDR_EXPR, string_type, string_tree);
+	  
+	  tree print_fn = builtin_decl_implicit(BUILT_IN_PRINTF);
+	  gimple print_gimple = gimple_build_call(print_fn, 3,
+						  string_args_tree,
+						  rhs, rhs2);
+	  
+	  gsi_insert_before(&gsi, print_gimple, GSI_NEW_STMT);
+	}
       }
-      else 
+      else {
 	insert_print_var(gsi, lhs, rhs);
-
+	if ( TREE_CODE(TREE_TYPE(rhs)) == POINTER_TYPE ) {
+	  insert_print_string(gsi, "Pointer being used!\n");
+	  char string[] = "Pointer being used: %p, %d'th element\n";
+	  tree string_tree = fix_string_type(build_string(strlen(string)+1,
+							  string));
+	  tree string_type = build_pointer_type(
+					     TREE_TYPE(TREE_TYPE(string_tree)));
+	  tree string_args_tree = build1(ADDR_EXPR, string_type, string_tree);
+	  
+	  tree print_fn = builtin_decl_implicit(BUILT_IN_PRINTF);
+	  gimple print_gimple = gimple_build_call(print_fn, 2,
+						  string_args_tree,
+						  rhs, rhs2);
+	  
+	  gsi_insert_before(&gsi, print_gimple, GSI_NEW_STMT);
+	}
+      }
+    
     }
 
 
@@ -464,7 +509,7 @@ public:
     // very rare crash somewhere in analyze_fn_loops
     analyze_fn_loops(cfun);
 
-    //find_vars();
+    find_vars();
     
     return 0;
   }

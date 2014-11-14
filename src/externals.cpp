@@ -5,8 +5,8 @@
 extern "C" {
 
   enum IO {
-    RD,
-    WR
+    RD = 0,
+    WR = 1
   };
   
   struct access {
@@ -34,14 +34,23 @@ extern "C" {
   std::vector<struct access> *alloc_loop_vector() {
     current_loop = new std::vector<struct access>;
     full_loop.push_back(current_loop);
-    printf("Allocating vector at %p\n", current_loop);
+    //printf("Allocating vector at %p\n", current_loop);
     return current_loop;
   }
 
-  void insert_info() {
-    printf("Using vector at %p\n", current_loop);
+  void insert_info(void* address, int type, size_t size) {
+    //printf("Using vector at %p\n", current_loop);
+    printf("%d access type at address %p of size %d\n", type, address, size);
+
+  }
 
 
+  void clean_full_loop() {
+    for ( int i = 0 ; i < full_loop.size() ; ++i ) 
+      delete full_loop[i];
+
+    full_loop.clear();
+    return;
   }
 
 
