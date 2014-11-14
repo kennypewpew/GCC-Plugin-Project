@@ -15,6 +15,7 @@
 #include <gimple-expr.h>
 
 #include <tree-pretty-print.h>
+#include <gimple-pretty-print.h>
 //#include <builtins.h>
 
 #include <iostream>
@@ -45,9 +46,49 @@ void check_instr_args_for_doubles() {
   return;
 }
 
+// Introducing memory leak here
+const char* isolate_name(const char *fn) {
+  bool flag = false;
+  int first, last;
+  char space[] = " ";
+  char open[] = "(";
+  for ( int i = 0 ; i < strlen(fn) ; ++i )
+    if ( fn[i] == space[0] ) {
+      if ( !flag ) {
+	flag = true;
+	first = i+1;
+      }
+      else {
+	last = i;
+	break;
+      }
+    }
+    else if ( fn[i] == open[0] ) {
+      last = i;
+      break;
+    }
+
+  if ( flag ) {
+    int length = last - first;
+    char *res = new char[length];
+    memcpy(res, fn+first, length);
+    return res;
+  }
+  /* 
+  // make this else work properly to be able to free/delete memory afterwards
+  else {
+    int length = strlen(fn);
+    char *res = new char[length];
+    memcpy(res, fn, length);
+    return res;
+  }
+  */
+  return fn;
+}
+
 bool function_to_check(const char *fn) {
   for ( int i = 0 ; i < instr_args.length() ; ++i )
-    if ( 0 == strcmp(fn, instr_args[i]) ) {
+    if ( 0 == strcmp(isolate_name(fn), instr_args[i]) ) {
       arg_used[i] = true;
       return true;
     }
@@ -59,52 +100,68 @@ static void test_if_all_used(void *event_data, void *data) {
   printf("[pragma] Testing if all %d functions were checked\n", 
 	 arg_used.length());
   // Returns wrong file number as error
+  bool unused = false;
   for ( int i = 0 ; i < arg_used.length() ; ++i )
-    if ( !arg_used[i] ) 
+    if ( !arg_used[i] ) {
       //warning (OPT_Wpragmas,
       printf(
       "[pragma] warning: Function \"%s\" declared to analyze, but not found\n",
 	       instr_args[i]);
+      unused = true;
+    }
+  if ( !unused ) printf("[pragma] Success!\n");
 }
 /******* End analysis storage/functions ******/
 
 /******** Insert functions ********/
-void insert_function() {
+tree insert_function(gimple_stmt_iterator &gsi) {
   gimple fn_call;
 
   // Is there any need for verbosity = 3? Try setting to 0?
-  const char *fn_name = gimple_decl_printable_name(cfun->decl, 3);
-  printf("%s\n", fn_name);
+  //const char *fn_name = gimple_decl_printable_name(cfun->decl, 3);
+  //printf("%s\n", fn_name);
   
   // Return type of function to insert, followed by types of args
   tree fn_type = build_function_type_list(void_type_node,
-					  ptr_type_node,
-					  uint32_type_node,
-					  //TREE_TYPE(var),
 					  NULL_TREE);
 
-  
-  // Create an identifier for the function
-  tree fn_id = build_int_cst(uint32_type_node, cfun->funcdef_no);
+  // Operation to create declaration of function
+  tree fn_decl = build_fn_decl("alloc_loop_vector", fn_type);
+
+  fn_call = gimple_build_call(fn_decl, 0);
+
+  debug_gimple_stmt(fn_call);
+
+  gsi_insert_before(&gsi, fn_call, GSI_NEW_STMT);
+  debug_gimple_stmt(gsi_stmt(gsi));
+  printf("-----------------------------\n");
+  tree vector = gimple_assign_lhs(gsi_stmt(gsi));
+
+  //gimple_stmt_iterator next_gsi = gsi;
+  //gsi_next(&next_gsi);
+
+  //gimple next_fn_call;
+
+  // Return type of function to insert, followed by types of args
+  //tree next_fn_type = build_function_type_list(void_type_node,
+  //					  ptr_type_node,
+  //					  NULL_TREE);
 
   // Operation to create declaration of function
-  tree fn_decl = build_fn_decl("test_function", fn_type);
+  //tree next_fn_decl = build_fn_decl("insert_info", next_fn_type);
 
-  // not needed until you have args 
-  tree fn_name_tree = fix_string_type( build_string (strlen( fn_name ) + 1,
-  						     fn_name) );
-  tree ptrtype = build_pointer_type (TREE_TYPE (TREE_TYPE (fn_name_tree)));
-  tree p_name = build1 (ADDR_EXPR, ptrtype, fn_name_tree);
+  //next_fn_call = gimple_build_call(next_fn_decl, 1, vector);
+
+  //debug_gimple_stmt(next_fn_call);
+  //gsi_insert_before(&gsi, next_fn_call, GSI_NEW_STMT);
+
   
-  fn_call = gimple_build_call(fn_decl, 2, p_name, fn_id);
-
-
-  return;
+  return fn_type;
 }
 
 
 void insert_print_var(gimple_stmt_iterator &gsi, tree var, tree var2) {
-  char string[] = "[%s]lhs value is %d, rhs is %d\n";
+  char string[] = "[%s] lhs value is %d, rhs is %d\n";
   tree string_tree = fix_string_type(build_string(strlen(string)+1, string));
 
   tree string_type = build_pointer_type(TREE_TYPE(TREE_TYPE(string_tree)));
@@ -128,7 +185,7 @@ void insert_print_var(gimple_stmt_iterator &gsi, tree var, tree var2) {
   return;
 }
 void insert_print_var(gimple_stmt_iterator &gsi, tree var, tree var2, tree var3) {
-  char string[] = "[%s]lhs value is %d, rhs is %d, %d\n";
+  char string[] = "[%s] lhs value is %d, rhs is %d, %d\n";
   tree string_tree = fix_string_type(build_string(strlen(string)+1, string));
 
   tree string_type = build_pointer_type(TREE_TYPE(TREE_TYPE(string_tree)));
@@ -191,8 +248,8 @@ bool analyze_stmt(gimple stmt, gimple prev_stmt, gimple_stmt_iterator &gsi) {
 	  case TARGET_MEM_REF: printf("TARGET_MEM_REF\n"); break;
 	  case ADDR_EXPR: printf("ADDR_EXPR\n"); break;
 	  case INDIRECT_REF: printf("INDIRECT_REF\n"); break;
-	  case MEM_REF: flag = 1; printf("MEM_REF\n");
-	    break;
+	  case MEM_REF: flag = 1;
+	    printf("MEM_REF\n"); break;
 	  case COMPONENT_REF: printf("COMPONENT_REF!\n");break;
 	  case RECORD_TYPE: break;
 	  default: break;
@@ -212,6 +269,7 @@ bool analyze_stmt(gimple stmt, gimple prev_stmt, gimple_stmt_iterator &gsi) {
       }
       else 
 	insert_print_var(gsi, lhs, rhs);
+
     }
 
 
@@ -248,6 +306,7 @@ void find_vars() {
 
 
 /******* Begin pragma handling *******/
+
 static void vcheck_pragma_handler(cpp_reader *ARG_UNUSED(notUsed)) {
   tree tmpTree;
   enum cpp_ttype tmpType;
@@ -272,12 +331,13 @@ static void vcheck_pragma_handler(cpp_reader *ARG_UNUSED(notUsed)) {
   }
   else {
     while ( tmpType == CPP_NAME) {
-      current_string = IDENTIFIER_POINTER (tmpTree);
+      const char *full_string = IDENTIFIER_POINTER (tmpTree) ;
+      current_string = isolate_name(full_string);
       printf("[pragma] Function \"%s\" recognized as needing analysis\n",current_string);
 
       instr_args.safe_push(current_string);
       arg_used.safe_push(false);
-
+      
       tmpType = pragma_lex (&tmpTree);
       while ( tmpType == CPP_COMMA)
 	tmpType = pragma_lex (&tmpTree);
@@ -353,6 +413,7 @@ void analyze_fn_loops(struct function *fn) {
       
       insert_print_string(gsi_pre,
 			  "Entering innermost loop\n");
+      tree vec = insert_function(gsi_pre);
       //insert_print_string(gsi_post,
       //"Inside innermost loop\n");
     }
@@ -385,8 +446,8 @@ public:
     : gimple_opt_pass(loop_analysis_pass_data, ctxt) {}
 
   bool gate() { 
-    std::cerr << "[analysis_pass] Entering gate\n";
     const char *current_function = fndecl_name(cfun->decl);
+    printf("[analysis_pass] Entering gate: %s\n", current_function);
 
     if ( function_to_check(current_function) ) {
       const char *current_function = fndecl_name(cfun->decl);

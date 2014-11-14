@@ -1,22 +1,33 @@
 GCC=gcc
 GXX=g++
 
-GCC_PLUGIN_PATH=`gcc -print-file-name=plugin`/include
-GCC_INSTALL_PATH=/home/kenny/MIHPS/Compilation/GCC\ Docs/Install/gcc-4.9.1/gcc
+GCC_INSTALL_PATH=`gcc -print-file-name=plugin`
+GCC_PLUGIN_PATH=${GCC_INSTALL_PATH}/include
 
 IFLAGS=-I./include -I${GCC_PLUGIN_PATH} -I${GCC_INSTALL_PATH}
 CFLAGS=
-LDFLAGS=-O1
-LIBFLAGS=-shared -fno-rtti -fpic
+LDFLAGS=-O1 -L ./ -lexternal
+LIBFLAGS=-shared -fpic
+PLIBFLAGS=${LIBFLAGS} -fno-rtti
 
 all:
 
-%_test: lib/vcheck_plugin.so tests/%.c
-	${GCC} -fplugin=$^ -o bin/$@ ${IFLAGS} ${LDFLAGS}
-	bin/$@
+%_test: tests/%.c lib/vcheck_plugin.so lib/libexternal.so
+	echo "------------------------------------------------"
+	${GXX} -fplugin=lib/vcheck_plugin.so $< -o bin/$@ ${IFLAGS} ${LDFLAGS} -L./lib/ -I./lib/
+	echo "------------------------------------------------"
+	LD_LIBRARY_PATH=./lib/ ./bin/$@
 
-tmp/%.o: tests/%.c
+%.o: %.c
 	${GCC} -c $< -o $@
 
 lib/vcheck_plugin.so: src/vectorization-plugin.cpp
-	${GXX} $< ${LIBFLAGS} -o $@ -Wl,-soname,$@ ${IFLAGS} 
+	${GXX} $< ${PLIBFLAGS} -o $@ -Wl,-soname,$@ ${IFLAGS} 
+
+lib/libexternal.so: src/externals.cpp
+	${GXX} $< ${LIBFLAGS} -o $@
+
+clean:
+	rm -rf *.o *.so basic_add_test
+	rm -rf lib/*.so
+	rm -rf bin/basic_add_test

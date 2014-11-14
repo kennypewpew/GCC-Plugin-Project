@@ -19,9 +19,9 @@ int main (int argc, char **argv) {
   int *A, *B, *C;
   int n = 10;
 
-  A = malloc(n*sizeof(int));
-  B = malloc(n*sizeof(int));
-  C = malloc(n*sizeof(int));
+  A = (int*)malloc(n*sizeof(int));
+  B = (int*)malloc(n*sizeof(int));
+  C = (int*)malloc(n*sizeof(int));
 
   int i;
   for ( i = 0 ; i < n ; ++i ) {
