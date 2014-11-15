@@ -69,7 +69,7 @@ const char* isolate_name(const char *fn) {
     }
 
   if ( flag ) {
-    int length = last - first;
+    size_t length = last - first;
     char *res = new char[length];
     memcpy(res, fn+first, length);
     return res;
@@ -87,11 +87,18 @@ const char* isolate_name(const char *fn) {
 }
 
 bool function_to_check(const char *fn) {
-  for ( int i = 0 ; i < instr_args.length() ; ++i )
-    if ( 0 == strcmp(isolate_name(fn), instr_args[i]) ) {
+  for ( int i = 0 ; i < instr_args.length() ; ++i ) {
+    int flag = strcmp(isolate_name(fn), instr_args[i]);
+    //printf("%s, %s, %s, %d\n", fn, isolate_name(fn), instr_args[i],
+    //flag);
+    //if ( 0 == strcmp(isolate_name(fn), instr_args[i]) ) {
+    if ( 0 == flag ) {
+      printf("I'm here\n");
       arg_used[i] = true;
       return true;
     }
+  }
+  printf("No match\n");
   return false;
 }
 
@@ -252,12 +259,13 @@ void analyze_gimple_op(gimple_stmt_iterator &gsi,
     case PARM_DECL:
     case CONST_DECL:
     case STRING_CST:
+      // Non-variables. Don't think we need to handle these
+      break;
     case SSA_NAME:
-    case ADDR_EXPR: break;
+      // Deal with non-array variables here. Can also be done statically
+      break;
+    case ADDR_EXPR: 
     case MEM_REF: 
-      //if ( TREE_CODE(op) == POINTER_TYPE )
-      //insert_print_string(gsi, "Pointer in use!\n");
-      printf("MEM_REF\n");
       insert_stock_fn(gsi, TREE_OPERAND(op,0), io_type);
       break;
     case ARRAY_REF:
@@ -307,7 +315,6 @@ void find_vars(basic_block bb) {
     gsi_next(&gsi);
   } // end while: inside basic block
   gsi = gsi_last_bb(bb);
-  insert_print_string(gsi, "End basic block\n");
 }
 
 
