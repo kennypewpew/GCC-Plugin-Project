@@ -46,7 +46,7 @@ void check_instr_args_for_doubles() {
   return;
 }
 
-// Introducing memory leak here
+// Introducing memory leak here (test with languages other than C++)
 const char* isolate_name(const char *fn) {
   bool flag = false;
   int first, last;
@@ -99,7 +99,7 @@ bool function_to_check(const char *fn) {
 static void test_if_all_used(void *event_data, void *data) {
   printf("[pragma] Testing if all %d functions were checked\n", 
 	 arg_used.length());
-  // Returns wrong file number as error
+  // Returns wrong line number as error
   bool unused = false;
   for ( int i = 0 ; i < arg_used.length() ; ++i )
     if ( !arg_used[i] ) {
@@ -422,35 +422,6 @@ static void register_vector_pragmas(void *even_data, void *data) {
 /******* End pragma handling ********/
 
 /****** Begin new pass *********************/
-
-void placeholder(basic_block bb) {
-  tree mystring_tree;
-
-  char startstring[] = "[placeholder] This is a loop of %s\n";
-  mystring_tree = fix_string_type( build_string(strlen(startstring)+1,
-						startstring) );
-
-  tree mystring_type = build_pointer_type (TREE_TYPE(
-						     TREE_TYPE(mystring_tree)));
-  tree mystring_args_tree = build1(ADDR_EXPR, mystring_type, mystring_tree);
-
-  const char *fString = gimple_decl_printable_name(cfun->decl, 3);
-  tree fString_tree = fix_string_type( build_string(strlen(fString)+1,
-						    fString) );
-  tree fString_type = build_pointer_type (
-					  TREE_TYPE(TREE_TYPE(fString_tree)));
-  tree fString_args_tree = build1(ADDR_EXPR, fString_type, fString_tree);
-
-  tree fn = builtin_decl_implicit(BUILT_IN_PRINTF);
-  gimple print_gimple = gimple_build_call(fn, 2, 
-					  mystring_args_tree,
-					  fString_args_tree);
-  
-  gimple_stmt_iterator gsi = gsi_start_bb(bb);
-  gsi_insert_before(&gsi, print_gimple, GSI_NEW_STMT);
-
-}
-
 void analyze_fn_loops(struct function *fn) {
   const char *fn_name = fndecl_name(fn->decl);
 
@@ -463,25 +434,25 @@ void analyze_fn_loops(struct function *fn) {
       printf("Innermost loop found!\n");
       basic_block preheader = loop_preheader_edge(cLoop)->src;
       gimple_stmt_iterator gsi_pre = gsi_start_bb(preheader);
+      insert_print_string(gsi_pre,
+			  "Entering innermost loop\n");
 
       // initialize analysis data structures(gsi_pre/preheader)
       // inject logging functions(gsi_post/postheader)
-      
-      insert_print_string(gsi_pre,
-			  "Entering innermost loop\n");
-      insert_function(gsi_pre);
+      basic_block loop_start = loop_preheader_edge(cLoop)->dest;
+      gimple_stmt_iterator gsi_start = gsi_start_bb(loop_start);
+      insert_function(gsi_start);
 
-      //edge post_edge = loop_latch_edge(cLoop);
-      edge post_edge = single_exit(cLoop);
-      basic_block post_block = post_edge->dest;
-      gimple_stmt_iterator gsi_post = gsi_start_bb(post_block);
-      insert_print_string(gsi_post,
-			  "Exiting loop\n");
-      insert_post_loop_treatment(gsi_post);
+      vec<edge> all_exits = get_loop_exit_edges (cLoop);
+      for ( unsigned i = 0 ; i < all_exits.length() ; ++i ) {
+	edge post_edge = all_exits[i];
+	basic_block post_block = post_edge->dest;
+	gimple_stmt_iterator gsi_post = gsi_start_bb(post_block);
+	insert_print_string(gsi_post,
+			    "Exiting loop\n");
+	insert_post_loop_treatment(gsi_post);
+      }
     }
-    // Use ->src to add before start of loop, ->dest to add inside start of loop
-    //basic_block preLoop = loop_preheader_edge(cLoop)->src;
-    //placeholder(preLoop);
   }
 
   return;
