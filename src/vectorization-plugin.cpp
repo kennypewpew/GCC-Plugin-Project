@@ -29,8 +29,8 @@ std::vector<const char*> instr_args;
 std::vector<bool> arg_used;
 
 void check_instr_args_for_doubles() {
+  bool flag;
   for ( int i = 0 ; i < instr_args.size() ; ++i ) {
-    bool flag = false;
     for ( int j = i-1 ; j > -1 ; --j ) {
       if ( 0 == strcmp(instr_args[i],instr_args[j]) )
 	flag = true;
@@ -39,10 +39,13 @@ void check_instr_args_for_doubles() {
       warning (OPT_Wpragmas,
 	       "[pragma] Function \"%s\" declared to be checked multiple times",
 	       instr_args[i]);
-      arg_used[i] = true;
+      
+      instr_args.erase(instr_args.begin() + i);
+      arg_used.erase(arg_used.begin() + i);
     }
-  }
-
+    flag = false;
+    }
+  
   return;
 }
 
