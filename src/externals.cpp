@@ -43,7 +43,7 @@ extern "C" {
 
   void insert_info(void *address, enum IO type, int size) {
     void *tmp = address;
-    tmp += size/8;
+    tmp += size/8; // because size is in bits and it's easier to modify here
     printf("%d access type from address %p - %p\n", type, address, tmp);
 
     // How do structs get copied? Should we be allocating on the head instead?
@@ -60,15 +60,58 @@ extern "C" {
     return;
   }
 
+
+bool check_overlap(void* start1, void* end1, void* start2, void* end2){
+    if( (start1 > start2 && start1 < end2) ||
+            (end1 > start2 && end1 < end2) ||
+            (start2 > start1 && start2 < end1)
+            ) return true;
+    return false;
+}
   void analyze_loop() {
     printf("Analyzing loop\n");
+        int i, j, k, l;
 
-    for ( int i = 0 ; i < full_loop.size() ; ++i ) {
-      printf("%d accesses in loop body\n", full_loop[i]->size());
-      current_loop = full_loop[i];
-      for ( int j = 0 ; j < current_loop->size() ; ++j ) 
-	printf("%p - %p\n", (*current_loop)[j].start, (*current_loop)[j].end);
+    std::vector<struct access> *current_loop_2;
+
+    int full_loop_size = full_loop.size();
+    int current_loop_size;
+    int current_loop_size_2;
+
+    int vector_max_size = full_loop_size;
+	printf("LOOP SIZE : %d\n",vector_max_size);
+
+    for(i=1; i<full_loop_size; i++){ //all iterations in the loop except the first
+        current_loop = full_loop[i];
+        current_loop_size = current_loop->size();
+        for(j=0; j<current_loop_size; j++){ //all access for the current loop iteration
+            for(k=i-1; k>=0; k--){ //look for dependencies in previous iterations
+                current_loop_2 = full_loop[k];
+                current_loop_size_2 = current_loop_2->size();
+                for(l=0; l<current_loop_size_2; l++){ //check all access in iteration k
+                    if((*current_loop)[j].type == WR){ //every previous acces can be a problem
+                        if(check_overlap((*current_loop)[j].start, (*current_loop)[j].end,
+                                      (*current_loop_2)[l].start, (*current_loop_2)[l].end)
+						  ){
+								vector_max_size = i-k;
+								if(vector_max_size == 1) goto end;
+						   }
+                    }
+                    else if((*current_loop_2)[l].type == WR){ //check only for RAW dependencies
+                        if(check_overlap((*current_loop)[j].start, (*current_loop)[j].end,
+                                      (*current_loop_2)[l].start, (*current_loop_2)[l].end)
+						  ){
+								vector_max_size = i-k;
+								if(vector_max_size == 1) goto end;
+						   }
+                    }
+                }
+            }
+        }
     }
+end:
+    printf("POSSIBLE VECTOR SIZE : %d\n",vector_max_size);
+
     clean_full_loop();
     return;
   }
