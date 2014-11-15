@@ -41,10 +41,12 @@ extern "C" {
     return current_loop;
   }
 
-  void insert_info(void* address, enum IO type, int size) {
+  void insert_info(void *address, enum IO type, int size) {
     void *tmp = address;
-    tmp += size;
-    //printf("%d access type from address %p - %p\n", type, address, tmp);
+    tmp += size/8;
+    printf("%d access type from address %p - %p\n", type, address, tmp);
+
+    // How do structs get copied? Should we be allocating on the head instead?
     struct access acc = { address, tmp, type };
     current_loop->push_back(acc);
   }
@@ -61,7 +63,12 @@ extern "C" {
   void analyze_loop() {
     printf("Analyzing loop\n");
 
-
+    for ( int i = 0 ; i < full_loop.size() ; ++i ) {
+      printf("%d accesses in loop body\n", full_loop[i]->size());
+      current_loop = full_loop[i];
+      for ( int j = 0 ; j < current_loop->size() ; ++j ) 
+	printf("%p - %p\n", (*current_loop)[j].start, (*current_loop)[j].end);
+    }
     clean_full_loop();
     return;
   }
