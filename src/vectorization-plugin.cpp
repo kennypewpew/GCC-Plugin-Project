@@ -336,14 +336,14 @@ bool analyze_stmt(gimple stmt, gimple prev_stmt, gimple_stmt_iterator &gsi) {
   return false;
 }
 
-void find_vars() {
+void find_vars(basic_block bb) {
   printf("Finding variables of %s\n", fndecl_name(cfun->decl));
 
-  basic_block bb;
+  //basic_block bb;
   gimple_stmt_iterator gsi;
   gimple stmt, prev_stmt;
 
-  FOR_EACH_BB_FN(bb, cfun) {    
+  //FOR_EACH_BB_FN(bb, cfun) {    
     gsi = gsi_start_bb(bb);
     while ( gsi.ptr != (gsi_last_bb(bb)).ptr ) {
       prev_stmt = stmt;
@@ -352,7 +352,7 @@ void find_vars() {
       if ( stmt && prev_stmt ) {
 	analyze_stmt(stmt, prev_stmt, gsi);
       }
-    }
+      //}
     gsi = gsi_last_bb(bb);
     //insert_print_string(gsi, "End basic block\n");
   }
@@ -431,6 +431,11 @@ void analyze_fn_loops(struct function *fn) {
 
     // Is it really this easy to only touch innermost loops?
     if ( !cLoop->inner ) {
+      basic_block *body = get_loop_body(cLoop);
+      unsigned nBlocks = cLoop->num_nodes;
+      for ( unsigned i = 0 ; i < nBlocks ; ++i )
+	find_vars(body[i]);
+
       printf("Innermost loop found!\n");
       basic_block preheader = loop_preheader_edge(cLoop)->src;
       gimple_stmt_iterator gsi_pre = gsi_start_bb(preheader);
@@ -497,7 +502,7 @@ public:
     // very rare crash somewhere in analyze_fn_loops
     analyze_fn_loops(cfun);
 
-    find_vars();
+    //find_vars();
     
     return 0;
   }
