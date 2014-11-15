@@ -69,9 +69,11 @@ const char* isolate_name(const char *fn) {
     }
 
   if ( flag ) {
-    size_t length = last - first;
+    size_t length = last - first + 1;
     char *res = new char[length];
     memcpy(res, fn+first, length);
+    char eol[] = "\0";
+    memcpy(res+length-1, eol, 1);
     return res;
   }
   /* 
@@ -88,11 +90,7 @@ const char* isolate_name(const char *fn) {
 
 bool function_to_check(const char *fn) {
   for ( int i = 0 ; i < instr_args.length() ; ++i ) {
-    int flag = strcmp(isolate_name(fn), instr_args[i]);
-    //printf("%s, %s, %s, %d\n", fn, isolate_name(fn), instr_args[i],
-    //flag);
-    //if ( 0 == strcmp(isolate_name(fn), instr_args[i]) ) {
-    if ( 0 == flag ) {
+    if ( 0 == strcmp(isolate_name(fn), instr_args[i]) ) {
       printf("I'm here\n");
       arg_used[i] = true;
       return true;
