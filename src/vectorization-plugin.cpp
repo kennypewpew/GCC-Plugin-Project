@@ -20,16 +20,16 @@
 
 #include <iostream>
 #include <string>
+#include <vector>
 
 int plugin_is_GPL_compatible;
 
 /******* Begin analysis storage/functions ******/
-vec<const char*, va_heap, vl_ptr> instr_args;
-vec<bool, va_heap, vl_ptr> arg_used;
-
+std::vector<const char*> instr_args;
+std::vector<bool> arg_used;
 
 void check_instr_args_for_doubles() {
-  for ( int i = 0 ; i < instr_args.length() ; ++i ) {
+  for ( int i = 0 ; i < instr_args.size() ; ++i ) {
     bool flag = false;
     for ( int j = i-1 ; j > -1 ; --j ) {
       if ( 0 == strcmp(instr_args[i],instr_args[j]) )
@@ -76,37 +76,37 @@ const char* isolate_name(const char *fn) {
     memcpy(res+length-1, eol, 1);
     return res;
   }
-  /* 
+
   // make this `else` work properly to be able to free/delete memory afterwards
   else {
-    int length = strlen(fn);
+    int length = strlen(fn)+1;
     char *res = new char[length];
     memcpy(res, fn, length);
+    char eol[] = "\0";
+    memcpy(res+length-1, eol, 1);
     return res;
   }
-  */
+
   return fn;
 }
 
 bool function_to_check(const char *fn) {
-  for ( int i = 0 ; i < instr_args.length() ; ++i ) {
+  for ( int i = 0 ; i < instr_args.size() ; ++i ) {
     if ( 0 == strcmp(isolate_name(fn), instr_args[i]) ) {
-      printf("I'm here\n");
       arg_used[i] = true;
       return true;
     }
   }
-  printf("No match\n");
   return false;
 }
 
 
 static void test_if_all_used(void *event_data, void *data) {
   printf("[pragma] Testing if all %d functions were checked\n", 
-	 arg_used.length());
+	 arg_used.size());
   // Returns wrong line number as error
   bool unused = false;
-  for ( int i = 0 ; i < arg_used.length() ; ++i )
+  for ( int i = 0 ; i < arg_used.size() ; ++i )
     if ( !arg_used[i] ) {
       //warning (OPT_Wpragmas,
       printf(
@@ -285,13 +285,13 @@ void analyze_stmt(gimple stmt, gimple prev_stmt, gimple_stmt_iterator &gsi) {
   if ( is_gimple_assign(stmt) ) {
     // make sure this includes mult, add, etc as well
     
-    printf("Assignment - %d operands\n", gimple_num_ops(stmt));
-    debug_gimple_stmt(stmt);
+    //printf("Assignment - %d operands\n", gimple_num_ops(stmt));
+    //debug_gimple_stmt(stmt);
     for ( i = 0 ; i < gimple_num_ops(stmt) ; ++i ) {
       op = gimple_op(stmt, i);
       if ( op ) {
 	analyze_gimple_op(gsi, op, i ? RD : WR);
-	printf("Tree code: %s\n", get_tree_code_name(TREE_CODE(op)));
+	//printf("Tree code: %s\n", get_tree_code_name(TREE_CODE(op)));
 	//printf("Tree type: %s\n", get_tree_type_name(TREE_TYPE(op)));
       } // end if: op exists
     } // end for: ops
@@ -301,7 +301,7 @@ void analyze_stmt(gimple stmt, gimple prev_stmt, gimple_stmt_iterator &gsi) {
 }
 
 void find_vars(basic_block bb) {
-  printf("Finding variables of %s\n", fndecl_name(cfun->decl));
+  //printf("Finding variables of %s\n", fndecl_name(cfun->decl));
 
   gimple_stmt_iterator gsi;
   gimple stmt, prev_stmt;
@@ -350,8 +350,8 @@ static void vcheck_pragma_handler(cpp_reader *ARG_UNUSED(notUsed)) {
       printf("[pragma] Function \"%s\" recognized as needing analysis\n",
 	     current_string);
 
-      instr_args.safe_push(current_string);
-      arg_used.safe_push(false);
+      instr_args.push_back(current_string);
+      arg_used.push_back(false);
       
       tmpType = pragma_lex (&tmpTree);
       while ( tmpType == CPP_COMMA)
