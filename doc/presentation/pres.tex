@@ -1,0 +1,103 @@
+\documentclass{beamer}
+\usetheme{Berkeley}
+
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{multicol}
+
+\begin{document}
+
+\section{Gestion des Directives}
+
+\begin{frame}
+  \frametitle{Pragmas}
+  Nouveau pragma implement\'e
+  \begin{block}
+    {Utilisation}
+    \#pragma MIHPS vcheck \space f1, f2, f3\\
+    \#pragma MIHPS vcheck (f1, f2, f3)
+  \end{block}
+  \begin{itemize}
+    \item Stock les noms de fonctions donn\'e par l'utilisateur
+    \item Enleve les doublons
+    \item Verifie que toutes fonctions ont \'et\'e trouv\'ees
+  \end{itemize}
+\end{frame}
+
+
+
+
+\section{Instrumentation Dynamique des Boucles}
+
+\begin{frame}
+  \frametitle{Compilation - Analyse d'une Fonction}
+  \begin{itemize}
+    \item Verifie si la fonction est nomm\'e
+    \item Parcour tout les boucles pour trouver les plus internes (loop$\rightarrow$inner = 0)
+    \item Insert une initialisation pour pouvoir stocker les infos
+    \item Parcour tout les basic\_blocks d'une boucle interne\\
+      - Insert les fonctions de stockage d'infos
+    \item Apres la fin de la boucle, insert la fonction d'analyse
+  \end{itemize}
+\end{frame}
+
+
+\begin{frame}
+  \frametitle{Avant/Apres}
+  \begin{columns}
+    \begin{column}{0.45\textwidth}
+      \begin{algorithm}[H]
+        \begin{algorithmic}
+          \FOR{i = 0 : N}
+          \STATE{B[i] = A[i]}
+          \ENDFOR
+        \end{algorithmic}
+      \end{algorithm}
+    \end{column}
+
+    \begin{column}{0.45\textwidth}
+      \begin{algorithm}[H]
+        \begin{algorithmic}
+          \FOR{i = 0 : N}
+          \STATE{Initialize info struct}
+          \STATE{Store access info - A[i]}
+          \STATE{Store access info - B[i]}
+          \STATE{B[i] = A[i]}
+          \ENDFOR
+          \STATE{Analysis}
+          \STATE{Cleanup}
+        \end{algorithmic}
+      \end{algorithm}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Bibliotheque Externe - Stockage}
+  \begin{block}
+    {access\_t}
+    void *start\\void *end\\enum io\_type type
+  \end{block}
+  
+  \begin{block}
+    {vector$\langle$access$\rangle$ *current\_loop}
+  \end{block}
+
+  \begin{block}
+    {vector$\langle$*vector$\langle$access$\rangle\rangle$ full\_loop}
+  \end{block}
+  
+  \begin{itemize}
+    \item Debut de chaque boucle: alloue current\_loop, ajoute a full\_loop
+    \item Dans la boucle: pour chaque acces, remplis un access\_t, ajoute a current\_loop
+    \item Apres la boucle: analyse, vide full\_loop
+  \end{itemize}
+\end{frame}
+
+
+
+
+
+\end{document}
+
+
