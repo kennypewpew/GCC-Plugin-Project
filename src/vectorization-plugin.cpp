@@ -28,6 +28,10 @@ int plugin_is_GPL_compatible;
 std::vector<const char*> instr_args;
 std::vector<bool> arg_used;
 
+// Implement and fill these for better user feedback
+//std::vector<int> line_no;
+//std::vector<const char*> file_name;
+
 void check_instr_args_for_doubles() {
   bool flag;
   for ( int i = 0 ; i < instr_args.size() ; ++i ) {
@@ -42,6 +46,7 @@ void check_instr_args_for_doubles() {
       
       instr_args.erase(instr_args.begin() + i);
       arg_used.erase(arg_used.begin() + i);
+      i--; // because the next element replaces the current element
     }
     flag = false;
     }
@@ -105,8 +110,6 @@ bool function_to_check(const char *fn) {
 
 
 static void test_if_all_used(void *event_data, void *data) {
-  printf("[pragma] Testing if all %d functions were checked\n", 
-	 arg_used.size());
   // Returns wrong line number as error
   bool unused = false;
   for ( int i = 0 ; i < arg_used.size() ; ++i )
@@ -117,7 +120,12 @@ static void test_if_all_used(void *event_data, void *data) {
 	       instr_args[i]);
       unused = true;
     }
-  if ( !unused ) printf("[pragma] Success!\n");
+  //if ( !unused ) printf("[pragma] Success - all functions found!\n");
+
+  printf("Functions to analyze:  ");
+  for ( int i = 0 ; i < instr_args.size()-1 ; ++i ) 
+    printf("%s, ", instr_args[i]);
+  printf("%s\n", instr_args[instr_args.size()-1]);
 }
 /******* End analysis storage/functions ******/
 
@@ -127,7 +135,7 @@ enum IO {
   WR = 1
 };
 
-void insert_function(gimple_stmt_iterator &gsi) {
+void insert_alloc_function(gimple_stmt_iterator &gsi) {
   gimple fn_call;
 
   // Return type of function to insert, followed by types of args
@@ -146,26 +154,31 @@ void insert_function(gimple_stmt_iterator &gsi) {
   return;
 }
 
-void insert_stock_fn(gimple_stmt_iterator &gsi, tree var, enum IO type) {
+void insert_stock_fn(gimple_stmt_iterator &gsi,
+		     tree var, tree index,
+		     enum IO type) {
   gimple fn_call;
-
+  
   // Return type of function to insert, followed by types of args
   tree fn_type = build_function_type_list(void_type_node,
 					  ptr_type_node,
+					  integer_type_node,
 					  integer_type_node,
 					  size_type_node,
 					  NULL_TREE);
   // Operation to create declaration of function
   tree fn_decl = build_fn_decl("insert_info", fn_type);
-
   tree io_type = build_int_cst(integer_type_node, type);
 
   tree var_type = TREE_TYPE(var);
-  if ( TREE_CODE(var_type) == POINTER_TYPE ) var_type = TREE_TYPE(var_type);
-  fn_call = gimple_build_call(fn_decl, 3, var, io_type,
+  if ( TREE_CODE(var_type) == POINTER_TYPE )
+    var_type = TREE_TYPE(var_type);
+  if ( TREE_CODE(var_type) == ARRAY_TYPE )
+    var_type = TREE_TYPE(var_type);
+  
+  fn_call = gimple_build_call(fn_decl, 4, var, index, io_type,
 			      TYPE_SIZE(var_type));
   gsi_insert_before(&gsi, fn_call, GSI_SAME_STMT);
-
 
   return;
 }
@@ -185,7 +198,7 @@ void insert_post_loop_treatment(gimple_stmt_iterator gsi) {
 }
 
 
-void insert_print_var(gimple_stmt_iterator &gsi, tree var, tree var2) {
+static void insert_print_var(gimple_stmt_iterator &gsi, tree var, tree var2) {
   char string[] = "[%s] lhs value is %d, rhs is %d\n";
   tree string_tree = fix_string_type(build_string(strlen(string)+1, string));
 
@@ -209,7 +222,9 @@ void insert_print_var(gimple_stmt_iterator &gsi, tree var, tree var2) {
   
   return;
 }
-void insert_print_var(gimple_stmt_iterator &gsi, tree var, tree var2, tree var3) {
+
+static void insert_print_var(gimple_stmt_iterator &gsi, tree var, tree var2,
+			     tree var3) {
   char string[] = "[%s] lhs value is %d, rhs is %d, %d\n";
   tree string_tree = fix_string_type(build_string(strlen(string)+1, string));
 
@@ -233,7 +248,7 @@ void insert_print_var(gimple_stmt_iterator &gsi, tree var, tree var2, tree var3)
   
   return;
 }
-void insert_print_string(gimple_stmt_iterator &gsi, const char *string) {
+static void insert_print_string(gimple_stmt_iterator &gsi, const char *string) {
   tree string_tree = fix_string_type(build_string(strlen(string)+1, string));
 
   tree string_type = build_pointer_type(TREE_TYPE(TREE_TYPE(string_tree)));
@@ -251,7 +266,7 @@ void analyze_gimple_op(gimple_stmt_iterator &gsi,
 		       tree op,
 		       enum IO io_type) {
 
-  //printf("%s\n", get_tree_code_name( TREE_CODE(op) ) );
+  tree zero_index;
   switch( TREE_CODE( op ) )
     {
     case INTEGER_CST: 
@@ -267,11 +282,14 @@ void analyze_gimple_op(gimple_stmt_iterator &gsi,
       break;
     case ADDR_EXPR: 
     case MEM_REF: 
-      insert_stock_fn(gsi, TREE_OPERAND(op,0), io_type);
+      zero_index = build_int_cst(integer_type_node, 0);
+      insert_stock_fn(gsi, TREE_OPERAND(op,0), zero_index, io_type);
       break;
     case ARRAY_REF:
-      analyze_gimple_op(gsi, TREE_OPERAND(op,0), RD);
-      analyze_gimple_op(gsi, TREE_OPERAND(op,1), RD);
+      insert_stock_fn(gsi,
+		      TREE_OPERAND(TREE_OPERAND(op,0),0),
+		      TREE_OPERAND(op,1),
+		      io_type);
       break;
     default: break;
     } // end switch: TREE_CODE
@@ -286,17 +304,10 @@ void analyze_stmt(gimple stmt, gimple prev_stmt, gimple_stmt_iterator &gsi) {
   size_t i;
 
   if ( is_gimple_assign(stmt) ) {
-    // make sure this includes mult, add, etc as well
-    
-    //printf("Assignment - %d operands\n", gimple_num_ops(stmt));
-    //debug_gimple_stmt(stmt);
     for ( i = 0 ; i < gimple_num_ops(stmt) ; ++i ) {
       op = gimple_op(stmt, i);
-      if ( op ) {
+      if ( op )
 	analyze_gimple_op(gsi, op, i ? RD : WR);
-	//printf("Tree code: %s\n", get_tree_code_name(TREE_CODE(op)));
-	//printf("Tree type: %s\n", get_tree_type_name(TREE_TYPE(op)));
-      } // end if: op exists
     } // end for: ops
   } // end if: assign stmt
     
@@ -304,8 +315,6 @@ void analyze_stmt(gimple stmt, gimple prev_stmt, gimple_stmt_iterator &gsi) {
 }
 
 void find_vars(basic_block bb) {
-  //printf("Finding variables of %s\n", fndecl_name(cfun->decl));
-
   gimple_stmt_iterator gsi;
   gimple stmt, prev_stmt;
 
@@ -350,11 +359,13 @@ static void vcheck_pragma_handler(cpp_reader *ARG_UNUSED(notUsed)) {
     while ( tmpType == CPP_NAME) {
       const char *full_string = IDENTIFIER_POINTER (tmpTree) ;
       current_string = isolate_name(full_string);
-      printf("[pragma] Function \"%s\" recognized as needing analysis\n",
-	     current_string);
 
       instr_args.push_back(current_string);
       arg_used.push_back(false);
+
+      // ideally recover information from here for better feedback
+      //line_no.push_back(0);
+      //file_name.push_back(NULL);
       
       tmpType = pragma_lex (&tmpTree);
       while ( tmpType == CPP_COMMA)
@@ -376,7 +387,7 @@ static void vcheck_pragma_handler(cpp_reader *ARG_UNUSED(notUsed)) {
 }
 
 static void register_vector_pragmas(void *even_data, void *data) {
-  printf("[pragma] Registering vectorization pragmas\n");
+  //printf("[pragma] Registering vectorization pragmas\n");
   c_register_pragma("MIHPS", "vcheck", vcheck_pragma_handler);
 }
 
@@ -388,32 +399,21 @@ void analyze_fn_loops(struct function *fn) {
 
   struct loop *cLoop = get_loop(fn, 0);
   FOR_EACH_LOOP(cLoop, 0) {
-    printf("[%s] loop detected\n", fn_name);
-
-    // Is it really this easy to only touch innermost loops?
     if ( !cLoop->inner ) {
       basic_block *body = get_loop_body(cLoop);
       unsigned nBlocks = cLoop->num_nodes;
       for ( unsigned i = 0 ; i < nBlocks ; ++i )
 	find_vars(body[i]);
 
-      printf("Innermost loop found!\n");
-      basic_block preheader = loop_preheader_edge(cLoop)->src;
-      gimple_stmt_iterator gsi_pre = gsi_start_bb(preheader);
-      insert_print_string(gsi_pre,
-			  "Entering innermost loop\n");
-
       basic_block loop_start = loop_preheader_edge(cLoop)->dest;
       gimple_stmt_iterator gsi_start = gsi_start_bb(loop_start);
-      insert_function(gsi_start);
+      insert_alloc_function(gsi_start);
 
       vec<edge> all_exits = get_loop_exit_edges (cLoop);
       for ( unsigned i = 0 ; i < all_exits.length() ; ++i ) {
 	edge post_edge = all_exits[i];
 	basic_block post_block = post_edge->dest;
 	gimple_stmt_iterator gsi_post = gsi_start_bb(post_block);
-	insert_print_string(gsi_post,
-			    "Exiting loop\n");
 	insert_post_loop_treatment(gsi_post);
       } // end for: all exits of loop
     } // end if: inner loop
@@ -444,21 +444,13 @@ public:
 
   bool gate() { 
     const char *current_function = fndecl_name(cfun->decl);
-    printf("[analysis_pass] Entering gate: %s\n", current_function);
-
-    if ( function_to_check(current_function) ) {
-      const char *current_function = fndecl_name(cfun->decl);
-      printf("[analysis_pass] Analyzing function %s\n", current_function);
-
+    if ( function_to_check(current_function) )
       return true;
-    }
     else
       return false; 
   }
 
   unsigned int execute() {
-
-    // very rare crash somewhere in analyze_fn_loops
     analyze_fn_loops(cfun);
 
     return 0;
@@ -476,13 +468,11 @@ int plugin_init (struct plugin_name_args *plugin_info,
   printf("           Initializing plugin                 \n");
   printf("-----------------------------------------------\n");
 
-  // Declare pragmas
   register_callback(plugin_info->base_name,
 		    PLUGIN_PRAGMAS,
 		    register_vector_pragmas,
 		    NULL);
 
-  // Insert loop analysis pass
   struct register_pass_info loop_analysis_pass_info;
   analysis_pass analyze(g);
 
@@ -497,12 +487,10 @@ int plugin_init (struct plugin_name_args *plugin_info,
 		    &loop_analysis_pass_info);
 
 
-  // Check if all functions actually analyzed
   register_callback(plugin_info->base_name,
 		    PLUGIN_FINISH,
 		    test_if_all_used,
 		    NULL);
-
 
   return 0;
 }
