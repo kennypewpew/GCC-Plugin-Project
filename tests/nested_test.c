@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#pragma MIHPS vcheck (nestedLoops)
+#pragma MIHPS vcheck (nestedLoops, notHere, notThere)
 
 int N = 10;
 void nestedLoops(int *A, int *B, int *C) {
@@ -11,9 +11,6 @@ void nestedLoops(int *A, int *B, int *C) {
         for ( j = 0 ; j < 4 ; ++j ) {
             for ( k = 0 ; k < 3 ; ++ k )
                 C[k] += A[i]*B[j];
-            for ( k = 0 ; k < 2 ; ++ k )
-                C[k] += A[i]*B[j];
-            printf("\n");
         }
     }
 

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #pragma MIHPS vcheck dummy
 int sum;
@@ -19,7 +20,7 @@ int main(void) {
   printf("Beginning single_array test\n");
 
   int i, *A;
-  A = malloc(10*sizeof(int));
+  A = (int*)malloc(10*sizeof(int));
   for ( i = 0 ; i < 10 ; ++i )
     A[i] = 2*i;
   
