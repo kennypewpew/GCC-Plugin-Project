@@ -111,18 +111,17 @@ bool function_to_check(const char *fn) {
 
 static void test_if_all_used(void *event_data, void *data) {
   // Returns wrong line number as error
-  bool unused = false;
   for ( int i = 0 ; i < arg_used.size() ; ++i )
     if ( !arg_used[i] ) {
       //warning (OPT_Wpragmas,
       printf(
       "[pragma] warning: Function \"%s\" declared to analyze, but not found\n",
 	       instr_args[i]);
-      unused = true;
+      instr_args.erase(instr_args.begin() + i);
+      arg_used.erase(arg_used.begin() + i);
+      i--; // because the next element replaces the current element
     }
-  //if ( !unused ) printf("[pragma] Success - all functions found!\n");
-
-  printf("Functions to analyze:  ");
+  printf("Functions that will be analyzed:  ");
   for ( int i = 0 ; i < instr_args.size()-1 ; ++i ) 
     printf("%s, ", instr_args[i]);
   printf("%s\n", instr_args[instr_args.size()-1]);
